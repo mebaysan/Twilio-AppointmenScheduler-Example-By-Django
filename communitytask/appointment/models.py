@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from datetime import datetime
 import pytz
 from communitytask.settings import TIME_ZONE
-
+from django.template.defaultfilters import slugify
 # Create your models here.
 
 
@@ -27,9 +27,15 @@ class Appointment(models.Model):
     content = models.TextField(null=True, blank=True)
     appointment_datetime = models.DateTimeField(
         null=False, blank=False, auto_created=True, editable=True)
+    scheduler_id = models.TextField(null=True, blank=True, editable=False)
 
     def __str__(self):
         return self.title
+
+    def save(self, *args, **kwargs):
+        self.scheduler_id = slugify(
+            f"{self.account.user.username}{self.account.phone_number}{self.appointment_datetime}{self.title}")
+        return super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = 'Appointment'
@@ -41,15 +47,6 @@ class Appointment(models.Model):
             return f"Appointment: {self. title}"
         else:
             return f"Appointment: {self.title}\nDetail: {self.content}"
-
-    @property
-    def get_scheduler_id(self):
-        """Generate scheduled appointment id
-
-        Returns:
-            str: Generated scheduled job id
-        """
-        return f"{self.account.user.username}|{self.account.phone_number}|{self.pk}"
 
     @property
     def get_date_time(self):
@@ -71,3 +68,7 @@ class Appointment(models.Model):
             list: list of Appointment objects
         """
         return Appointment.objects.filter(appointment_datetime__gte=datetime.now(tz=pytz.timezone(TIME_ZONE)))
+
+    @classmethod
+    def get_scheduled_appointment(cls, job_id):
+        return cls.objects.filter(scheduler_id=job_id).first()
